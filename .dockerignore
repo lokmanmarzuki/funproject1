@@ -1,0 +1,44 @@
+# Node modules
+node_modules
+npm-debug.log
+
+# Build output (will be rebuilt in container)
+dist
+
+# Development files
+*.log
+.env
+.env.local
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation (not needed in container)
+README.md
+DEPLOYMENT.md
+INSTALLATION-COMPLETE.md
+
+# Test scripts
+test-event.ps1
+test-event-with-card.ps1
+
+# Runtime data (will be mounted as volumes)
+data/
+snapshots/
+*.db
+*.db-journal
+
+# User config (should be mounted)
+config.json
