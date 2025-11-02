@@ -1,15 +1,15 @@
 {
   "forwarding": {
     "enabled": true,
-    "destinationHost": "192.168.1.100",
-    "destinationPort": 4000,
+    "destinationHost": "192.168.100.87",
+    "destinationPort": 3001,
     "protocol": "tcp",
     "timeout": 5000,
     "retryAttempts": 3
   },
   "filtering": {
     "enabled": true,
-    "skipStaffNumbers": [],
+    "skipStaffNumbers": ["27-09"],
     "skipEventTypes": []
   },
   "cctv": {
@@ -38,7 +38,7 @@
     "logFiltering": true
   },
   "monitoring": {
-    "enabled": true,
+    "enabled": false,
     "sourceHost": "192.168.1.99",
     "timeoutSeconds": 30
   }
