@@ -40,7 +40,7 @@ export interface DoorCameraConfig {
 export class DatabaseManager {
   private db: Database.Database;
 
-  constructor(dbPath: string = './data.db') {
+  constructor(dbPath: string = './data/data.db') {
     this.db = new Database(dbPath);
     this.initDatabase();
   }

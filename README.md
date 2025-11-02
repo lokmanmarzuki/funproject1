@@ -478,6 +478,46 @@ Forward events via HTTP POST:
 }
 ```
 
+## Viewing RTSP Camera Streams
+
+The dashboard displays **📹 Live** buttons for events that have associated camera stream URLs. RTSP (Real Time Streaming Protocol) streams cannot be viewed directly in web browsers and require a media player.
+
+### How to View RTSP Streams:
+
+**Option 1: VLC Media Player (Recommended)**
+1. Download VLC from https://www.videolan.org/
+2. Click the **📹 Live** button in the dashboard
+3. Copy the RTSP URL (e.g., `rtsp://192.168.1.10:554/stream1`)
+4. Open VLC → Media → Open Network Stream
+5. Paste the RTSP URL and click Play
+
+**Option 2: FFmpeg (Command Line)**
+```powershell
+ffplay rtsp://192.168.1.10:554/stream1
+```
+
+**Option 3: Windows Media Player**
+- Some RTSP streams may work with File → Open URL
+
+### Testing Camera Snapshots:
+
+The Door Config page includes a **📸 Test** button for each configured camera:
+1. Go to `http://localhost:3000/config/doors`
+2. Click **📸 Test** next to any door/camera
+3. The system will attempt to capture a snapshot and open it
+4. Check the alert message for stream URL and snapshot status
+
+### Camera Configuration:
+
+Configure cameras in the Door Config page or `config.json`:
+- **Camera IP**: IP address of the ONVIF/RTSP camera
+- **Port**: Usually 80 for ONVIF, 554 for RTSP
+- **Username/Password**: Camera credentials
+- **Stream URL**: Full RTSP URL (e.g., `rtsp://192.168.1.10:554/stream1`)
+- **ONVIF Enabled**: Enable for automatic snapshot capture
+
+**Note:** Stream URLs are stored with each event and displayed in the dashboard for quick access to live camera feeds.
+
 ## Troubleshooting
 
 - **Port already in use:** Make sure ports 3000 and 3001 are available

@@ -36,5 +36,10 @@
   "logging": {
     "logForwarding": true,
     "logFiltering": true
+  },
+  "monitoring": {
+    "enabled": true,
+    "sourceHost": "192.168.1.99",
+    "timeoutSeconds": 30
   }
 }

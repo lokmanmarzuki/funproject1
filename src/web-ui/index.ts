@@ -144,6 +144,32 @@ app.delete('/api/door-cameras/:devname', (req, res) => {
   }
 });
 
+// Test snapshot capture endpoint
+app.post('/api/test-snapshot/:devname', async (req, res) => {
+  try {
+    const { cctvService } = await import('../shared/cctv');
+    const devname = decodeURIComponent(req.params.devname);
+    const result = await cctvService.captureSnapshot(devname, 0);
+    
+    if (result.success) {
+      res.json({ 
+        success: true, 
+        message: 'Snapshot captured successfully',
+        imagePath: result.imagePath,
+        streamUrl: result.streamUrl
+      });
+    } else {
+      res.json({ 
+        success: false, 
+        error: result.error,
+        streamUrl: result.streamUrl
+      });
+    }
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.get('/config/doors', (req, res) => {
   res.send(`<!DOCTYPE html>
 <html lang="en">
@@ -182,6 +208,8 @@ app.get('/config/doors', (req, res) => {
     td { padding: 12px; font-size: 0.9rem; }
     .actions button { padding: 6px 12px; margin-right: 5px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
     .edit-btn { background: #007bff; color: white; }
+    .test-btn { background: #28a745; color: white; }
+    .test-btn:hover { background: #218838; }
     .delete-btn { background: #dc3545; color: white; }
     .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
     .modal-content { background: white; margin: 5% auto; padding: 30px; border-radius: 10px; max-width: 600px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
@@ -349,9 +377,10 @@ app.get('/config/doors', (req, res) => {
               <td>\${door.camera_port}</td>
               <td>\${door.camera_username}</td>
               <td>\${door.onvif_enabled ? '✅ Yes' : '❌ No'}</td>
-              <td>\${door.stream_url ? '<a href="' + door.stream_url + '" target="_blank">📹 View</a>' : '-'}</td>
+              <td>\${door.stream_url ? '<a href="' + door.stream_url + '" target="_blank" class="stream-button">📹 Live</a>' : '-'}</td>
               <td class="actions">
                 <button class="edit-btn" onclick='showEditModal(\${JSON.stringify(door)})'>✏️ Edit</button>
+                <button class="test-btn" onclick="testSnapshot('\${door.devname}')" title="Test snapshot capture">📸 Test</button>
                 <button class="delete-btn" onclick="deleteDoor('\${door.devname}')">🗑️ Delete</button>
               </td>
             </tr>
@@ -419,6 +448,31 @@ app.get('/config/doors', (req, res) => {
         }
       } catch (error) {
         alert('Failed to delete configuration: ' + error.message);
+      }
+    }
+    
+    async function testSnapshot(devname) {
+      if (!confirm(\`Test snapshot capture for "\${devname}"?\`)) return;
+      
+      try {
+        const response = await fetch(\`/api/test-snapshot/\${encodeURIComponent(devname)}\`, {
+          method: 'POST'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+          const snapshotUrl = \`/snapshots/\${data.imagePath}\`;
+          const streamInfo = data.streamUrl ? \`\\n\\nStream URL: \${data.streamUrl}\` : '';
+          alert(\`✅ Snapshot captured successfully!\\n\\nImage: \${data.imagePath}\${streamInfo}\`);
+          
+          // Open the captured snapshot in a new tab
+          window.open(snapshotUrl, '_blank');
+        } else {
+          const streamInfo = data.streamUrl ? \`\\n\\nStream URL available: \${data.streamUrl}\` : '';
+          alert(\`❌ Snapshot capture failed:\\n\${data.error}\${streamInfo}\`);
+        }
+      } catch (error) {
+        alert('Failed to test snapshot: ' + error.message);
       }
     }
     
@@ -497,6 +551,21 @@ app.get('/', (req, res) => {
     .badge.violation { background: #ffebee; color: #c62828; }
     .snapshot-thumb { width: 60px; height: 45px; object-fit: cover; border-radius: 4px; cursor: pointer; }
     .stream-icon { color: #667eea; text-decoration: none; font-size: 1.2rem; }
+    .stream-button { 
+      display: inline-block;
+      padding: 4px 10px; 
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white; 
+      text-decoration: none; 
+      border-radius: 4px; 
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .stream-button:hover { 
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+    }
     .no-data { text-align: center; padding: 40px; color: #999; }
     .settings-panel { background: white; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 20px; display: none; }
     .settings-panel.show { display: block; }
@@ -596,7 +665,29 @@ app.get('/', (req, res) => {
             </div>
           </div>
           <div class="settings-section">
-            <h3>🚫 Staff Filtering</h3>
+            <h3>� Host Monitoring</h3>
+            <div class="form-group">
+              <label class="checkbox-label">
+                <input type="checkbox" id="monitor-enabled" onchange="updateMonitoringState()">
+                Enable Host Status Monitoring
+              </label>
+            </div>
+            <div id="monitor-fields">
+              <div class="form-group">
+                <label>Source Host IP</label>
+                <input type="text" id="monitor-host" placeholder="192.168.1.99">
+              </div>          
+              <div class="form-group">
+                <label>Timeout (seconds)</label>
+                <input type="number" id="monitor-timeout" placeholder="30">
+                <small style="color: #999; font-size: 0.85rem;">Alert if no events received for this duration</small>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="settings-grid">
+          <div class="settings-section">
+            <h3>�🚫 Staff Filtering</h3>
             <div class="form-group">
               <label class="checkbox-label">
                 <input type="checkbox" id="filter-enabled" onchange="updateFilteringState()">
@@ -674,17 +765,25 @@ app.get('/', (req, res) => {
     let skipStaffList = [];
     let currentPage = 1;
     const eventsPerPage = 100;
-    const SOURCE_HOST = '192.168.1.99';
+    let SOURCE_HOST = '192.168.1.99';
+    let MONITOR_ENABLED = true;
+    let MONITOR_TIMEOUT = 30000; // milliseconds
     let hostOnline = true;
     let lastEventTime = Date.now();
     
     // Monitor source host connectivity
     function checkSourceHost() {
+      if (!MONITOR_ENABLED) {
+        // If monitoring is disabled, hide alert and exit
+        hideHostOfflineAlert();
+        return;
+      }
+      
       const now = Date.now();
       const timeSinceLastEvent = now - lastEventTime;
       
-      // If no events received for 30 seconds, consider host offline
-      if (timeSinceLastEvent > 30000) {
+      // If no events received for configured timeout, consider host offline
+      if (timeSinceLastEvent > MONITOR_TIMEOUT) {
         if (hostOnline) {
           hostOnline = false;
           showHostOfflineAlert();
@@ -722,6 +821,13 @@ app.get('/', (req, res) => {
     function updateForwardingState() {
       const enabled = document.getElementById('fwd-enabled').checked;
       const fields = document.getElementById('fwd-fields');
+      fields.style.opacity = enabled ? '1' : '0.5';
+      fields.style.pointerEvents = enabled ? 'auto' : 'none';
+    }
+    
+    function updateMonitoringState() {
+      const enabled = document.getElementById('monitor-enabled').checked;
+      const fields = document.getElementById('monitor-fields');
       fields.style.opacity = enabled ? '1' : '0.5';
       fields.style.pointerEvents = enabled ? 'auto' : 'none';
     }
@@ -788,11 +894,22 @@ app.get('/', (req, res) => {
           document.getElementById('fwd-timeout').value = currentConfig.forwarding?.timeout || 5000;
           document.getElementById('fwd-retry').value = currentConfig.forwarding?.retryAttempts || 3;
           
+          // Populate monitoring settings
+          document.getElementById('monitor-enabled').checked = currentConfig.monitoring?.enabled !== false;
+          document.getElementById('monitor-host').value = currentConfig.monitoring?.sourceHost || '192.168.1.99';
+          document.getElementById('monitor-timeout').value = currentConfig.monitoring?.timeoutSeconds || 30;
+          
+          // Update global monitoring variables
+          MONITOR_ENABLED = currentConfig.monitoring?.enabled !== false;
+          SOURCE_HOST = currentConfig.monitoring?.sourceHost || '192.168.1.99';
+          MONITOR_TIMEOUT = (currentConfig.monitoring?.timeoutSeconds || 30) * 1000;
+          
           // Populate filtering settings
           document.getElementById('filter-enabled').checked = currentConfig.filtering?.enabled || false;
           skipStaffList = currentConfig.filtering?.skipStaffNumbers || [];
           
           updateForwardingState();
+          updateMonitoringState();
           updateFilteringState();
           renderStaffList();
         }
@@ -812,6 +929,11 @@ app.get('/', (req, res) => {
             timeout: parseInt(document.getElementById('fwd-timeout').value),
             retryAttempts: parseInt(document.getElementById('fwd-retry').value)
           },
+          monitoring: {
+            enabled: document.getElementById('monitor-enabled').checked,
+            sourceHost: document.getElementById('monitor-host').value,
+            timeoutSeconds: parseInt(document.getElementById('monitor-timeout').value)
+          },
           filtering: {
             enabled: document.getElementById('filter-enabled').checked,
             skipStaffNumbers: skipStaffList
@@ -829,6 +951,16 @@ app.get('/', (req, res) => {
         if (data.success) {
           showStatus('✅ Configuration saved successfully!', 'success');
           currentConfig = updatedConfig;
+          
+          // Update global monitoring variables
+          MONITOR_ENABLED = updatedConfig.monitoring.enabled;
+          SOURCE_HOST = updatedConfig.monitoring.sourceHost;
+          MONITOR_TIMEOUT = updatedConfig.monitoring.timeoutSeconds * 1000;
+          
+          // Reset host online state and hide alert if monitoring disabled
+          if (!MONITOR_ENABLED) {
+            hideHostOfflineAlert();
+          }
         } else {
           showStatus('❌ Failed to save: ' + (data.error || 'Unknown error'), 'error');
         }
@@ -862,7 +994,7 @@ app.get('/', (req, res) => {
     }
     
     function isViolation(trdesc) {
-      const keywords = ['violation', 'denied', 'failed', 'rejected'];
+      const keywords = ['violation', 'denied', 'failed', 'rejected', 'left open', 'disabled', 'forced open', 'invalid'];
       return keywords.some(k => trdesc.toLowerCase().includes(k));
     }
     
@@ -942,12 +1074,16 @@ app.get('/', (req, res) => {
         let snapshotCell = '-';
         if (event.snapshot_path) {
           const snapshotURL = '/snapshots/' + event.snapshot_path.split('/').pop().split('\\\\\\\\').pop();
-          snapshotCell = \`<img src="\${snapshotURL}" class="snapshot-thumb" alt="Snapshot" onclick="window.open('\${snapshotURL}')">\`;
+          snapshotCell = \`<img src="\${snapshotURL}" class="snapshot-thumb" alt="Snapshot" onclick="window.open('\${snapshotURL}', '_blank')" title="Click to view full size">\`;
         }
         
         let streamCell = '-';
         if (event.stream_url) {
-          streamCell = \`<a href="\${event.stream_url}" class="stream-icon" target="_blank" title="View Live Stream">📹</a>\`;
+          streamCell = \`
+            <a href="\${event.stream_url}" class="stream-button" target="_blank" title="Open RTSP stream in player">
+              📹 Live
+            </a>
+          \`;
         }
         
         return \`

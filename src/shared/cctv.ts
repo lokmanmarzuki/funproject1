@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import fetch from 'node-fetch';
 import { configManager, CameraConfig } from './config';
+import { DatabaseManager, DoorCameraConfig } from './database';
 
 export interface SnapshotResult {
   success: boolean;
@@ -14,10 +15,12 @@ export interface SnapshotResult {
 export class CCTVService {
   private static instance: CCTVService;
   private snapshotDir: string;
+  private db: DatabaseManager;
 
   private constructor() {
     const cctvConfig = configManager.getCCTVConfig();
     this.snapshotDir = cctvConfig.snapshotPath || './snapshots';
+    this.db = new DatabaseManager();
     this.ensureSnapshotDirectory();
   }
 
@@ -48,7 +51,25 @@ export class CCTVService {
       };
     }
 
-    const cameraConfig = configManager.getCameraConfig(deviceName);
+    // Try to get camera config from database first
+    let cameraConfig = this.db.getDoorCamera(deviceName);
+    
+    // Fallback to config.json if not in database
+    if (!cameraConfig) {
+      const jsonConfig = configManager.getCameraConfig(deviceName);
+      if (jsonConfig) {
+        cameraConfig = {
+          devname: deviceName,
+          camera_ip: jsonConfig.host,
+          camera_port: jsonConfig.port,
+          camera_username: jsonConfig.username,
+          camera_password: jsonConfig.password,
+          stream_url: jsonConfig.streamUrl,
+          onvif_enabled: true
+        };
+      }
+    }
+
     if (!cameraConfig) {
       console.log(`No camera configuration found for device: ${deviceName}`);
       return { 
@@ -72,28 +93,37 @@ export class CCTVService {
       return { 
         success: false, 
         error: error.message,
-        streamUrl: cameraConfig.streamUrl 
+        streamUrl: cameraConfig.stream_url 
       };
     }
   }
 
   private captureViaONVIF(
-    cameraConfig: CameraConfig,
+    cameraConfig: DoorCameraConfig,
     eventId: number
   ): Promise<SnapshotResult> {
     return new Promise((resolve) => {
+      if (!cameraConfig.onvif_enabled) {
+        resolve({ 
+          success: false, 
+          error: 'ONVIF is disabled for this camera',
+          streamUrl: cameraConfig.stream_url 
+        });
+        return;
+      }
+
       const cam = new Cam({
-        hostname: cameraConfig.host,
-        username: cameraConfig.username,
-        password: cameraConfig.password,
-        port: cameraConfig.port,
+        hostname: cameraConfig.camera_ip,
+        username: cameraConfig.camera_username,
+        password: cameraConfig.camera_password,
+        port: cameraConfig.camera_port,
         timeout: 10000
       }, (err: Error) => {
         if (err) {
           resolve({ 
             success: false, 
             error: `ONVIF connection failed: ${err.message}`,
-            streamUrl: cameraConfig.streamUrl 
+            streamUrl: cameraConfig.stream_url 
           });
           return;
         }
@@ -103,7 +133,7 @@ export class CCTVService {
             resolve({ 
               success: false, 
               error: 'Failed to get snapshot URI',
-              streamUrl: cameraConfig.streamUrl 
+              streamUrl: cameraConfig.stream_url 
             });
             return;
           }
@@ -119,14 +149,14 @@ export class CCTVService {
               resolve({ 
                 success: true, 
                 imagePath: filename,
-                streamUrl: cameraConfig.streamUrl 
+                streamUrl: cameraConfig.stream_url 
               });
             })
             .catch((error) => {
               resolve({ 
                 success: false, 
                 error: `Download failed: ${error.message}`,
-                streamUrl: cameraConfig.streamUrl 
+                streamUrl: cameraConfig.stream_url 
               });
             });
         });
@@ -135,15 +165,15 @@ export class CCTVService {
   }
 
   private async captureViaHTTP(
-    cameraConfig: CameraConfig,
+    cameraConfig: DoorCameraConfig,
     eventId: number
   ): Promise<SnapshotResult> {
     // Common HTTP snapshot URLs for IP cameras
     const snapshotUrls = [
-      `http://${cameraConfig.host}:${cameraConfig.port}/cgi-bin/snapshot.cgi`,
-      `http://${cameraConfig.host}:${cameraConfig.port}/snapshot.jpg`,
-      `http://${cameraConfig.host}:${cameraConfig.port}/snap.jpg`,
-      `http://${cameraConfig.host}:${cameraConfig.port}/image/jpeg.cgi`
+      `http://${cameraConfig.camera_ip}:${cameraConfig.camera_port}/cgi-bin/snapshot.cgi`,
+      `http://${cameraConfig.camera_ip}:${cameraConfig.camera_port}/snapshot.jpg`,
+      `http://${cameraConfig.camera_ip}:${cameraConfig.camera_port}/snap.jpg`,
+      `http://${cameraConfig.camera_ip}:${cameraConfig.camera_port}/image/jpeg.cgi`
     ];
 
     for (const url of snapshotUrls) {
@@ -152,7 +182,7 @@ export class CCTVService {
         const filename = `event_${eventId}_${timestamp}.jpg`;
         const imagePath = path.join(this.snapshotDir, filename);
 
-        const auth = Buffer.from(`${cameraConfig.username}:${cameraConfig.password}`).toString('base64');
+        const auth = Buffer.from(`${cameraConfig.camera_username}:${cameraConfig.camera_password}`).toString('base64');
         
         const response = await fetch(url, {
           method: 'GET',
@@ -170,7 +200,7 @@ export class CCTVService {
           return { 
             success: true, 
             imagePath: filename,
-            streamUrl: cameraConfig.streamUrl 
+            streamUrl: cameraConfig.stream_url 
           };
         }
       } catch (error) {
@@ -182,16 +212,16 @@ export class CCTVService {
     return { 
       success: false, 
       error: 'All HTTP snapshot URLs failed',
-      streamUrl: cameraConfig.streamUrl 
+      streamUrl: cameraConfig.stream_url 
     };
   }
 
   private async downloadImage(
     uri: string,
     outputPath: string,
-    cameraConfig: CameraConfig
+    cameraConfig: DoorCameraConfig
   ): Promise<void> {
-    const auth = Buffer.from(`${cameraConfig.username}:${cameraConfig.password}`).toString('base64');
+    const auth = Buffer.from(`${cameraConfig.camera_username}:${cameraConfig.camera_password}`).toString('base64');
     
     const response = await fetch(uri, {
       method: 'GET',
@@ -209,8 +239,8 @@ export class CCTVService {
   }
 
   public getStreamUrl(deviceName: string): string | undefined {
-    const cameraConfig = configManager.getCameraConfig(deviceName);
-    return cameraConfig?.streamUrl;
+    const cameraConfig = this.db.getDoorCamera(deviceName);
+    return cameraConfig?.stream_url;
   }
 }
 
