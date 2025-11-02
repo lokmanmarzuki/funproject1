@@ -12,6 +12,11 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/snapshots', express.static(path.join(__dirname, '../../snapshots')));
 
+// Health check endpoint for Docker
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 app.get('/api/events', (req, res) => {
   try {
     const limit = parseInt(req.query.limit as string) || 100;

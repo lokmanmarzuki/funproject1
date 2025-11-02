@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  evokepass:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: evokepass
+    ports:
+      - "3001:3001"  # TCP server for access control events
+      - "3000:3000"  # Web UI
+    volumes:
+      # Mount your config.json
+      - ./config.json:/app/config.json:ro
+      # Persist database
+      - ./data:/app/data
+      # Persist CCTV snapshots
+      - ./snapshots:/app/snapshots
+    environment:
+      - NODE_ENV=production
+      - TZ=Asia/Kuala_Lumpur  # Adjust to your timezone
+    restart: unless-stopped
+    networks:
+      - evokepass-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  evokepass-network:
+    driver: bridge
