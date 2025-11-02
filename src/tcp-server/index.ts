@@ -4,6 +4,7 @@ import { DatabaseManager } from '../shared/database';
 import { configManager } from '../shared/config';
 import { eventForwarder } from '../shared/forwarder';
 import { cctvService } from '../shared/cctv';
+import { wsBroadcaster } from '../shared/websocket';
 
 const PORT = 3001;
 const db = new DatabaseManager();
@@ -62,6 +63,12 @@ const server = net.createServer((socket: net.Socket) => {
               // Always store event in database (filtering only applies to forwarding)
               const id = db.insertEvent(eventData);
               console.log(`Stored event #${id}: ${eventData.staffname} - ${eventData.trdesc}`);
+              
+              // Broadcast new event to WebSocket clients immediately
+              const storedEvent = db.getEventById(id);
+              if (storedEvent) {
+                wsBroadcaster.broadcastNewEvent(storedEvent);
+              }
               
               // Update staff reference table
               db.upsertStaff(eventData.staffno, eventData.staffname, eventData.cardno);

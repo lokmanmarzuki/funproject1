@@ -1,12 +1,12 @@
-# Docker Proxy Configuration Script for Intel Network
-# This script configures Docker Desktop to use Intel's corporate proxy
+# Docker Proxy Configuration Script
+# This script configures Docker Desktop to use corporate proxy
 
 Write-Host "================================" -ForegroundColor Cyan
 Write-Host "Docker Proxy Configuration" -ForegroundColor Cyan
 Write-Host "================================" -ForegroundColor Cyan
 Write-Host ""
 
-$proxyServer = "proxy-dmz.intel.com:912"
+$proxyServer = "proxy-dmz.company.com:912"
 $dockerConfigPath = "$env:USERPROFILE\.docker"
 $dockerConfigFile = "$dockerConfigPath\config.json"
 
