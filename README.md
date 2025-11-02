@@ -143,6 +143,8 @@ Before running this project, you must install Node.js:
 
 ## Installation
 
+### Local Development
+
 After Node.js is installed and VS Code is restarted:
 
 1. **Install dependencies:**
@@ -154,6 +156,47 @@ After Node.js is installed and VS Code is restarted:
    ```powershell
    npm run build
    ```
+
+### Docker Deployment (Recommended)
+
+**Quick Build (Auto-detects Network):**
+```powershell
+.\build.ps1
+```
+
+The script automatically detects if you're on corporate network and applies proxy settings if needed.
+
+**Manual Build Options:**
+
+When **on corporate network** (requires proxy):
+```powershell
+.\build.ps1 proxy
+# Or manually:
+$env:HTTP_PROXY="http://proxy-dmz.company.com:912"
+$env:HTTPS_PROXY="http://proxy-dmz.company.com:912"
+docker-compose up -d --build
+```
+
+When **outside corporate network** (no proxy):
+```powershell
+.\build.ps1 no-proxy
+# Or manually:
+docker-compose up -d --build
+```
+
+**Manage Container:**
+```powershell
+# View logs
+docker logs evokepass --tail 50
+
+# Stop container
+docker-compose down
+
+# Restart
+docker-compose restart
+```
+
+Access the dashboard at **http://localhost:3000** after deployment.
 
 ## Usage
 

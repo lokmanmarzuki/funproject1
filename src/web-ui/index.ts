@@ -432,6 +432,10 @@ app.get('/config/doors', (req, res) => {
     // Load doors on page load
     loadDoors();
   </script>
+  
+  <footer>
+    <p>&copy; 2022-2025 EvokePass. All Rights Reserved.</p>
+  </footer>
 </body>
 </html>`);
 });
@@ -522,6 +526,10 @@ app.get('/', (req, res) => {
     .status-message { padding: 10px; border-radius: 5px; margin-top: 15px; text-align: center; display: none; }
     .status-message.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
     .status-message.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    
+    /* Footer */
+    footer { background: rgba(255,255,255,0.95); padding: 15px 0; margin-top: 40px; text-align: center; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); }
+    footer p { color: #666; font-size: 0.9rem; margin: 0; }
   </style>
 </head>
 <body>
@@ -1050,6 +1058,10 @@ app.get('/', (req, res) => {
     setInterval(checkForNewEvents, 2000);
     console.log('Polling started - checking for new events every 2 seconds');
   </script>
+  
+  <footer>
+    <p>&copy; 2022-2025 EvokePass. All Rights Reserved.</p>
+  </footer>
 </body>
 </html>`);
 });
