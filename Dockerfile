@@ -51,5 +51,13 @@ ENV NODE_ENV=production
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
-# Start both modules
-CMD ["npm", "start"]
+# Create a simple startup script
+RUN echo '#!/bin/sh' > /app/start.sh && \
+    echo 'node dist/tcp-server/index.js &' >> /app/start.sh && \
+    echo 'node dist/web-ui/index.js &' >> /app/start.sh && \
+    echo 'wait -n' >> /app/start.sh && \
+    echo 'exit $?' >> /app/start.sh && \
+    chmod +x /app/start.sh
+
+# Start both modules using the startup script
+CMD ["/app/start.sh"]
