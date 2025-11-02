@@ -1,12 +1,18 @@
 ﻿import express from 'express';
 import path from 'path';
+import { createServer } from 'http';
 import { DatabaseManager } from '../shared/database';
 import { configManager } from '../shared/config';
+import { wsBroadcaster } from '../shared/websocket';
 import * as fs from 'fs';
 
 const app = express();
+const server = createServer(app);
 const PORT = 3000;
 const db = new DatabaseManager();
+
+// Initialize WebSocket server
+wsBroadcaster.initialize(server);
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -147,16 +153,23 @@ app.get('/config/doors', (req, res) => {
   <title>Door/Camera Configuration - EvokePass</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
-    .container { max-width: 1800px; margin: 0 auto; }
-    header { text-align: center; color: white; margin-bottom: 30px; display: flex; flex-direction: column; align-items: center; gap: 15px; }
-    .logo-container { background: white; padding: 15px 30px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
-    .logo { max-width: 200px; height: auto; }
-    h1 { font-size: 2.5rem; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
-    .subtitle { font-size: 1.1rem; opacity: 0.9; }
-    .nav { background: white; padding: 15px 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; gap: 15px; }
-    .nav a { padding: 10px 20px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; font-weight: 600; transition: background 0.3s; }
-    .nav a:hover { background: #5568d3; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 0; }
+    .container { max-width: 100%; margin: 0 auto; }
+    
+    /* Header with logo and menu */
+    header { background: white; padding: 10px 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+    .logo-section { display: flex; align-items: center; gap: 15px; }
+    .logo { max-width: 80px; height: auto; }
+    .brand-text { font-size: 1.3rem; font-weight: bold; color: #667eea; margin: 0; }
+    
+    /* Navigation Menu */
+    .nav-menu { display: flex; gap: 5px; align-items: center; }
+    .nav-menu a, .nav-menu button { padding: 8px 16px; background: #667eea; color: white; text-decoration: none; border: none; border-radius: 5px; font-weight: 600; font-size: 0.9rem; cursor: pointer; transition: background 0.3s; }
+    .nav-menu a:hover, .nav-menu button:hover { background: #5568d3; }
+    .nav-menu a.active { background: #5568d3; }
+    
+    /* Content area */
+    .content { padding: 20px; }
     .controls { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; }
     .add-btn { padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1rem; font-weight: bold; }
     .add-btn:hover { background: #218838; }
@@ -191,19 +204,20 @@ app.get('/config/doors', (req, res) => {
 </head>
 <body>
   <div class="container">
+    <!-- Header with logo and menu -->
     <header>
-      <div class="logo-container">
+      <div class="logo-section">
         <img src="https://udaproperty.com.my/sites/default/files/styles/project_logo/public/node/project/images/2022-12/Evoke_1.png?itok=MIgcniXd" alt="Evoke Logo" class="logo">
+        <h1 class="brand-text">EvokePass - Door Config</h1>
       </div>
-      <h1>Door / Camera Configuration</h1>
-      <p class="subtitle">Configure CCTV cameras for each door (39 doors total)</p>
+      <div class="nav-menu">
+        <a href="/">📊 Dashboard</a>
+        <button onclick="toggleSettings()">⚙️ Publish Config</button>
+        <a href="/config/doors" class="active">🚪 Door Config</a>
+      </div>
     </header>
     
-    <div class="nav">
-      <a href="/">📊 Dashboard</a>
-      <a href="/config/doors">🚪 Door Configuration</a>
-    </div>
-    
+    <div class="content">
     <div class="controls">
       <div>
         <strong>Total Doors Configured: <span id="door-count">0</span></strong>
@@ -307,6 +321,10 @@ app.get('/config/doors', (req, res) => {
     function closeModal() {
       document.getElementById('doorModal').style.display = 'none';
       document.getElementById('modal-status').style.display = 'none';
+    }
+    
+    function toggleSettings() {
+      window.location.href = '/';
     }
     
     async function loadDoors() {
@@ -427,20 +445,37 @@ app.get('/', (req, res) => {
   <title>EvokePass - Access Control Dashboard</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
-    .container { max-width: 1600px; margin: 0 auto; }
-    header { text-align: center; color: white; margin-bottom: 30px; display: flex; flex-direction: column; align-items: center; gap: 15px; }
-    .logo-container { background: white; padding: 15px 30px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
-    .logo { max-width: 200px; height: auto; }
-    h1 { font-size: 2.5rem; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
-    .subtitle { font-size: 1.1rem; opacity: 0.9; }
-    .controls { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; }
-    .stats { display: flex; gap: 20px; }
-    .stat-box { padding: 10px 20px; background: #f0f0f0; border-radius: 5px; }
-    .stat-label { font-size: 0.9rem; color: #666; }
-    .stat-value { font-size: 1.5rem; font-weight: bold; color: #667eea; }
-    .refresh-btn { padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1rem; transition: background 0.3s; }
-    .refresh-btn:hover { background: #5568d3; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 0; }
+    .container { max-width: 100%; margin: 0 auto; }
+    
+    /* Header with logo on left and menu */
+    header { background: white; padding: 10px 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+    .logo-section { display: flex; align-items: center; gap: 15px; }
+    .logo { max-width: 80px; height: auto; }
+    .brand-text { font-size: 1.3rem; font-weight: bold; color: #667eea; margin: 0; }
+    
+    /* Navigation Menu */
+    .nav-menu { display: flex; gap: 5px; align-items: center; }
+    .nav-menu a, .nav-menu button { padding: 8px 16px; background: #667eea; color: white; text-decoration: none; border: none; border-radius: 5px; font-weight: 600; font-size: 0.9rem; cursor: pointer; transition: background 0.3s; }
+    .nav-menu a:hover, .nav-menu button:hover { background: #5568d3; }
+    .nav-menu a.active { background: #5568d3; }
+    
+    /* Refresh button */
+    .refresh-btn-small { padding: 6px 12px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 0.85rem; margin-left: 10px; }
+    .refresh-btn-small:hover { background: #218838; }
+    
+    /* Source host status alert */
+    .host-status { padding: 15px 20px; margin: 20px; border-radius: 8px; font-weight: bold; font-size: 1.1rem; text-align: center; display: none; }
+    .host-status.online { background: #d4edda; color: #155724; border: 2px solid #28a745; }
+    .host-status.offline { background: #f8d7da; color: #721c24; border: 3px solid #dc3545; animation: blink 1s infinite; display: block !important; }
+    @keyframes blink { 0%, 50%, 100% { opacity: 1; } 25%, 75% { opacity: 0.5; } }
+    
+    /* Content area */
+    .content { padding: 20px; }
+    /* Content area */
+    .content { padding: 20px; }
+    
+    .controls { background: white; padding: 15px 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
     .table-container { background: white; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; }
     .filters { padding: 15px; background: #f8f9fa; border-bottom: 2px solid #e9ecef; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
     .filter-input { padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 0.9rem; width: 100%; }
@@ -491,21 +526,28 @@ app.get('/', (req, res) => {
 </head>
 <body>
   <div class="container">
+    <!-- Header with logo and menu -->
     <header>
-      <div class="logo-container">
+      <div class="logo-section">
         <img src="https://udaproperty.com.my/sites/default/files/styles/project_logo/public/node/project/images/2022-12/Evoke_1.png?itok=MIgcniXd" alt="Evoke Logo" class="logo">
+        <h1 class="brand-text">EvokePass</h1>
       </div>
-      <h1>EvokePass</h1>
-      <p class="subtitle">Real-Time Access Control Monitoring</p>
+      <div class="nav-menu">
+        <a href="/" class="active">📊 Dashboard</a>
+        <button onclick="toggleSettings()">⚙️ Publish Config</button>
+        <a href="/config/doors">🚪 Door Config</a>
+        <button class="refresh-btn-small" onclick="loadEvents()">🔄 Refresh</button>
+      </div>
     </header>
     
-    <div style="background: white; padding: 15px 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; gap: 15px;">
-      <a href="/" style="padding: 10px 20px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; font-weight: 600; transition: background 0.3s;">📊 Dashboard</a>
-      <button onclick="toggleSettings()" style="padding: 10px 20px; background: #667eea; color: white; border: none; cursor: pointer; text-decoration: none; border-radius: 5px; font-weight: 600; transition: background 0.3s;">⚙️ Publish Config</button>
-      <a href="/config/doors" style="padding: 10px 20px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; font-weight: 600; transition: background 0.3s;">🚪 Door Configuration</a>
+    <!-- Host Status Alert -->
+    <div class="host-status" id="host-status">
+      ⚠️ WARNING: OFFICE ENTRYPASS SERVER is OFFLINE! No data is being received.
     </div>
     
-    <div class="settings-panel">
+    <div class="content">
+      <!-- Settings Panel -->
+      <div class="settings-panel" id="settings-panel">
       <div class="settings-header">
         <h2>⚙️ Publish Configuration</h2>
       </div>
@@ -570,19 +612,7 @@ app.get('/', (req, res) => {
       </div>
     </div>
     
-    <div class="controls">
-      <div class="stats">
-        <div class="stat-box">
-          <div class="stat-label">Total Events</div>
-          <div class="stat-value" id="total-events">0</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-label">Last Updated</div>
-          <div class="stat-value" id="last-updated">Never</div>
-        </div>
-      </div>
-      <button class="refresh-btn" onclick="loadEvents()">🔄 Refresh</button>
-    </div>
+    <!-- Events Table -->
     <div class="table-container">
       <div class="filters">
         <input type="text" class="filter-input" id="filter-id" placeholder="Filter ID..." onkeyup="filterTable()">
@@ -592,7 +622,7 @@ app.get('/', (req, res) => {
         <input type="text" class="filter-input" id="filter-staffno" placeholder="Filter Staff No..." onkeyup="filterTable()">
         <input type="text" class="filter-input" id="filter-cardno" placeholder="Filter Card No..." onkeyup="filterTable()">
         <input type="text" class="filter-input" id="filter-device" placeholder="Filter Device..." onkeyup="filterTable()">
-        <input type="date" class="filter-input" id="filter-date" onchange="filterTable()">
+        <input type="datetime-local" class="filter-input" id="filter-date" onchange="filterTable()">
       </div>
       <div style="padding: 15px; background: #f8f9fa; border-bottom: 2px solid #e9ecef; display: flex; justify-content: space-between; align-items: center;">
         <div style="display: flex; gap: 10px; align-items: center;">
@@ -636,9 +666,48 @@ app.get('/', (req, res) => {
     let skipStaffList = [];
     let currentPage = 1;
     const eventsPerPage = 100;
+    const SOURCE_HOST = '192.168.1.99';
+    let hostOnline = true;
+    let lastEventTime = Date.now();
+    
+    // Monitor source host connectivity
+    function checkSourceHost() {
+      const now = Date.now();
+      const timeSinceLastEvent = now - lastEventTime;
+      
+      // If no events received for 30 seconds, consider host offline
+      if (timeSinceLastEvent > 30000) {
+        if (hostOnline) {
+          hostOnline = false;
+          showHostOfflineAlert();
+        }
+      } else {
+        if (!hostOnline) {
+          hostOnline = true;
+          hideHostOfflineAlert();
+        }
+      }
+    }
+    
+    function showHostOfflineAlert() {
+      const alert = document.getElementById('host-status');
+      alert.className = 'host-status offline';
+      alert.style.display = 'block';
+      console.error('SOURCE HOST OFFLINE:', SOURCE_HOST);
+    }
+    
+    function hideHostOfflineAlert() {
+      const alert = document.getElementById('host-status');
+      alert.className = 'host-status online';
+      alert.style.display = 'none';
+      console.log('Source host back online:', SOURCE_HOST);
+    }
+    
+    // Check host status every 5 seconds
+    setInterval(checkSourceHost, 5000);
     
     function toggleSettings() {
-      const panel = document.querySelector('.settings-panel');
+      const panel = document.getElementById('settings-panel');
       panel.classList.toggle('show');
     }
     
@@ -811,8 +880,20 @@ app.get('/', (req, res) => {
         
         let matchDate = true;
         if (filterDate) {
-          const eventDate = formatDate(event.trdate).split('/').reverse().join('-'); // Convert DD/MM/YYYY to YYYY-MM-DD
-          matchDate = eventDate === filterDate;
+          // Parse event date and time
+          const eventDateStr = event.trdate; // YYYYMMDD
+          const eventTimeStr = event.trtime; // HHMMSS
+          const eventYear = eventDateStr.substring(0, 4);
+          const eventMonth = eventDateStr.substring(4, 6);
+          const eventDay = eventDateStr.substring(6, 8);
+          const eventHour = eventTimeStr.substring(0, 2);
+          const eventMin = eventTimeStr.substring(2, 4);
+          
+          // Create datetime string: YYYY-MM-DDTHH:MM
+          const eventDateTime = \`\${eventYear}-\${eventMonth}-\${eventDay}T\${eventHour}:\${eventMin}\`;
+          
+          // Check if event datetime starts with filter datetime
+          matchDate = eventDateTime.startsWith(filterDate);
         }
         
         return matchId && matchType && matchDesc && matchStaff && matchStaffNo && matchCardNo && matchDevice && matchDate;
@@ -900,11 +981,12 @@ app.get('/', (req, res) => {
         const response = await fetch('/api/events/all');
         const data = await response.json();
         
-        if (data.success) {
+        if (data.success && data.count > 0) {
           allEvents = data.data;
           filteredEvents = data.data;
-          document.getElementById('total-events').textContent = data.count;
-          document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+          
+          // Update last event time for host monitoring
+          lastEventTime = Date.now();
           
           if (data.count === 0) {
             const tbody = document.getElementById('events-body');
@@ -928,13 +1010,51 @@ app.get('/', (req, res) => {
     loadEvents();
     loadConfiguration();
     
-    // Auto-refresh every 5 seconds
-    setInterval(loadEvents, 5000);
+    // Polling mechanism as fallback for real-time updates
+    let lastEventId = 0;
+    
+    async function checkForNewEvents() {
+      try {
+        const response = await fetch('/api/events?limit=1');
+        const result = await response.json();
+        
+        console.log('Polling check - received:', result);
+        
+        if (result.success && result.data && result.data.length > 0) {
+          const latestEvent = result.data[0];
+          
+          // If we have a new event (higher ID than last known)
+          if (latestEvent.id > lastEventId) {
+            console.log('✅ New event detected:', latestEvent.id, '(previous:', lastEventId, ')');
+            
+            // Update last event time for host monitoring
+            lastEventTime = Date.now();
+            
+            // Update lastEventId BEFORE reloading to prevent duplicate reloads
+            lastEventId = latestEvent.id;
+            
+            // Reload all events to get the latest data
+            await loadEvents();
+          } else if (lastEventId === 0) {
+            // First load - just set the lastEventId without reloading
+            lastEventId = latestEvent.id;
+            console.log('Initial event ID set to:', lastEventId);
+          }
+        }
+      } catch (error) {
+        console.error('Error checking for new events:', error);
+      }
+    }
+    
+    // Poll every 2 seconds for new events
+    setInterval(checkForNewEvents, 2000);
+    console.log('Polling started - checking for new events every 2 seconds');
   </script>
 </body>
 </html>`);
 });
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Web UI running at http://localhost:${PORT}`);
+  console.log(`WebSocket server available at ws://localhost:${PORT}/ws`);
 });

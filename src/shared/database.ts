@@ -148,6 +148,11 @@ export class DatabaseManager {
     return stmt.all() as EventRecord[];
   }
 
+  getEventById(id: number): EventRecord | undefined {
+    const stmt = this.db.prepare('SELECT * FROM events WHERE id = ?');
+    return stmt.get(id) as EventRecord | undefined;
+  }
+
   getRecentEvents(limit: number = 100): EventRecord[] {
     const stmt = this.db.prepare('SELECT * FROM events ORDER BY timestamp DESC LIMIT ?');
     return stmt.all(limit) as EventRecord[];
